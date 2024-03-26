@@ -12,3 +12,65 @@ import os
 
 print("[INFO] loading network...")
 model = VGG16(weights="imagenet", include_top=False)
+le = None
+
+for split in (config.TRAIN, config.TEST, config.VAL):
+    print("[INFO] processing '{} split'...".format(split))
+    p = os.path.sep.join([config.BASE_PATH, split])
+    imagePaths = list(paths.list_images(p))
+
+    random.shuffle(imagePaths)
+    labels = [p.split(os.path.sep)[-2] for p in imagePaths]
+
+    if le is None:
+        le = LabelEncoder()
+        le.fit(labels)
+
+    csvPath = os.path.sep.join([config.BASE_CSV_PATH, "{}.csv".format(split)])
+    print(csvPath)
+    csv = open(csvPath, "w")
+
+    # loop over the images in batches
+    for b, i in enumerate(range(0, len(imagePaths), config.BATCH_SIZE)):
+        # extract the batch of images and labels, then initialize the
+        # list of actual images that will be passed through the network
+        # for feature extraction
+        print(
+            "[INFO] processing batch {}/{}".format(
+                b + 1, int(np.ceil(len(imagePaths) / float(config.BATCH_SIZE)))
+            )
+        )
+        batchPaths = imagePaths[i : i + config.BATCH_SIZE]
+        batchLabels = le.transform(labels[i : i + config.BATCH_SIZE])
+        batchImages = []
+
+    for imagePath in batchPaths:
+        # load the input image using the Keras helper utility
+        # while ensuring the image is resized to 224x224 pixels
+        image = load_img(imagePath, target_size=(224, 224))
+        image = img_to_array(image)
+
+        # preprocess the image by (1) expanding the dimensions and
+        # (2) subtracting the mean RGB pixel intensity from the
+        # ImageNet dataset
+        image = np.expand_dims(image, axis=0)
+        image = preprocess_input(image)
+
+        # add the image to the batch
+        batchImages.append(image)
+
+    # pass the images through the network and use the outputs as
+    # our actual features, then reshape the features into a
+    # flattened volume
+    batchImages = np.vstack(batchImages)
+    features = model.predict(batchImages, batch_size=config.BATCH_SIZE)
+    features = features.reshape((features.shape[0], 7 * 7 * 512))
+
+    for label, vec in zip(batchLabels, features):
+        vec = ",".join([str(v) for v in vec])
+        csv.write("{},{}\n".format(label, vec))
+    csv.close()
+
+f = open(config.LE_PATH, "wb")
+f.write(pickle.dumps(le))
+f.close()
