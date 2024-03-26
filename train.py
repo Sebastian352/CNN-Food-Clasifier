@@ -1,6 +1,6 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
-from pyimagesearch import config
+from utils import config
 import numpy as np
 import pickle
 import os
@@ -18,7 +18,6 @@ def load_data_split(splitPath):
         # update the data and label lists
         data.append(features)
         labels.append(label)
-        print(label)
     # convert the data and labels to NumPy arrays
     data = np.array(data)
     labels = np.array(labels)
